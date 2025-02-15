@@ -1,0 +1,6 @@
+streamlit==1.26.0         # Para la aplicación web
+pandas==2.0.3             # Para manipulación de datos
+openpyxl==3.1.2           # Para leer/escribir archivos Excel
+matplotlib==3.7.2         # Para gráficos básicos
+seaborn==0.12.2           # Para gráficos más avanzados y estilizados
+numpy==1.24.3             # Para operaciones numéricas (usado por pandas y matplotlib)
