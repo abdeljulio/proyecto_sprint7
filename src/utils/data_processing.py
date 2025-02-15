@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from pathlib import Path
 
+
 def transform_data(input_path, output_path):
     """Transforma los datos y realiza la interpolación para el año 2015."""
     try:
@@ -84,14 +85,21 @@ def clean_text_columns(df):
     return df
 
 if __name__ == '__main__':
-    current_script = Path(__file__).absolute()
+    current_script = Path(__file__).resolve()  
     project_root = current_script.parent.parent.parent
     
     input_path = project_root / "data" / "raw_data" / "Poblacion_02.xlsx"
     output_path = project_root / "data" / "processed_data" / "archivo_transformado.xlsx"
-    if not input_path.exists():
-        raise FileNotFoundError(f"🚨 Archivo crítico no encontrado en: {input_path}")
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"📍 Ruta del script: {current_script}")
+    print(f"📂 Directorio raíz: {project_root}")
+    print(f"🔍 Input path existe? {input_path.exists()}")
     
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"🚨 Archivo no encontrado en: {input_path}\n"
+            f"Directorios en data/raw_data: {[f.name for f in (project_root/'data'/'raw_data').iterdir()]}"
+        )
+    
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     transform_data(input_path, output_path)

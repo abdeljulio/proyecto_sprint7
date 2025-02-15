@@ -31,9 +31,11 @@ def process_data(input_path, output_path):
     return load_data(output_path)
 
 if __name__ == '__main__':
-    # Configuración de rutas
-    input_path = os.path.join('..', 'data', 'raw_data', 'Poblacion_02.xlsx')
-    output_path = os.path.join('..', 'data', 'processed_data', 'archivo_transformado.xlsx')
+    current_script = Path(__file__).resolve()
+    project_root = current_script.parent.parent  
+    
+    input_path = project_root / "data" / "raw_data" / "Poblacion_02.xlsx"
+    output_path = project_root / "data" / "processed_data" / "archivo_transformado.xlsx"
 
     try:
         df = process_data(input_path, output_path)
@@ -42,7 +44,6 @@ if __name__ == '__main__':
         st.error(f"Error crítico: {str(e)}")
         st.stop()
 
-    # Filtros globales (sidebar)
     st.sidebar.header("Filtros Globales")
     selected_year = st.sidebar.selectbox(
         "Año",
@@ -56,26 +57,25 @@ if __name__ == '__main__':
         key="global_states"
     )
 
-    # Dataset filtrado (CORRECCIÓN)
-    if not selected_states:  # Si no se selecciona ningún estado
-        df_filtered = df  # Usa el DataFrame completo
+
+    if not selected_states:  
+        df_filtered = df  
     else:
         df_filtered = df[
             (df['Año'] == selected_year) &
             (df['Entidad federativa'].isin(selected_states))
         ]
 
-    # Layout principal
+
     st.title(" Dashboard Demográfico")
     
-    # Sección principal en columnas
+
     col1, col2 = st.columns([2, 1])
     with col1:
         plot_population_by_gender_age(df_filtered, key_suffix="main")
     with col2:
         plot_population_pie(df_filtered, key_suffix="main")
 
-    # Secciones adicionales
     with st.expander(" Análisis Detallado", expanded=True):
         tab1, tab2, tab3 = st.tabs(["Tendencia", "Estados", "Comparativa"])
         
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         with tab3:
             plot_population_scatter(df_filtered, key_suffix="detail")
 
-    # Pronóstico en sidebar
+
     st.sidebar.header("Pronóstico")
     if st.sidebar.checkbox("Habilitar proyección", key="forecast_check"):
         forecast_population_quinquenal(df, key_suffix="main")
