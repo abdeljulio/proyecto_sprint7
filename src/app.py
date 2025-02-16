@@ -2,7 +2,6 @@ import pandas as pd
 import sys
 from pathlib import Path
 import os
-import pandas as pd
 import streamlit as st
 from utils.data_processing import transform_data
 from utils.visualization import (
@@ -11,7 +10,9 @@ from utils.visualization import (
     plot_population_by_state,
     plot_population_scatter,
     plot_population_pie,
-    forecast_population_quinquenal
+    forecast_population_quinquenal,
+    forecast_prophet,
+    plot_clusters
 )
 
 @st.cache_data
@@ -44,6 +45,12 @@ if __name__ == '__main__':
         st.error(f"Error crítico: {str(e)}")
         st.stop()
 
+    # ========== CONFIGURACIÓN DE IA ==========
+    st.sidebar.header("⚙️ Configuración de IA")
+    forecast_years = st.sidebar.slider("Años a pronosticar", 1, 10, 5)
+    n_clusters = st.sidebar.selectbox("Número de clusters", [2,3,4,5], index=1)
+
+    # ========== FILTROS GLOBALES ==========
     st.sidebar.header("Filtros Globales")
     selected_year = st.sidebar.selectbox(
         "Año",
@@ -57,27 +64,24 @@ if __name__ == '__main__':
         key="global_states"
     )
 
+    # ========== FILTRADO DE DATOS ==========
+    df_filtered = df[df['Año'] == selected_year]
+    if selected_states:
+        df_filtered = df_filtered[df_filtered['Entidad federativa'].isin(selected_states)]
 
-    if not selected_states:  
-        df_filtered = df  
-    else:
-        df_filtered = df[
-            (df['Año'] == selected_year) &
-            (df['Entidad federativa'].isin(selected_states))
-        ]
-
-
+    # ========== LAYOUT PRINCIPAL ==========
     st.title(" Dashboard Demográfico")
     
-
+    # Primera fila de gráficos
     col1, col2 = st.columns([2, 1])
     with col1:
         plot_population_by_gender_age(df_filtered, key_suffix="main")
     with col2:
         plot_population_pie(df_filtered, key_suffix="main")
 
-    with st.expander(" Análisis Detallado", expanded=True):
-        tab1, tab2, tab3 = st.tabs(["Tendencia", "Estados", "Comparativa"])
+    # Sección expandible
+    with st.expander("🧠 Análisis con Inteligencia Artificial", expanded=True):
+        tab1, tab2, tab3, tab_ai = st.tabs(["Tendencia", "Estados", "Comparativa", "IA"])
         
         with tab1:
             plot_population_trend(df, key_suffix="detail")
@@ -88,7 +92,25 @@ if __name__ == '__main__':
         with tab3:
             plot_population_scatter(df_filtered, key_suffix="detail")
 
+        with tab_ai:
+            st.header("Insights Automatizados")
+            
+            # En tu app.py (asegúrate de recibir la figura correctamente)
 
-    st.sidebar.header("Pronóstico")
-    if st.sidebar.checkbox("Habilitar proyección", key="forecast_check"):
-        forecast_population_quinquenal(df, key_suffix="main")
+    
+            # Subsección de Clustering
+            st.subheader("🧩 Agrupamiento de Estados")
+            cluster_year = st.selectbox("Selecciona el año para clustering:", sorted(df['Año'].unique()))
+            st.plotly_chart(plot_clusters(df, cluster_year, n_clusters), use_container_width=True)
+            
+            # Subsección de Forecasting
+            st.subheader("🔮 Pronóstico de Población")
+            if selected_states:
+                st.plotly_chart(forecast_prophet(df, selected_states, forecast_years), use_container_width=True)
+            else:
+                st.warning("Selecciona estados en el sidebar para generar pronósticos")
+
+            st.subheader("🔮 Pronóstico de Población")
+            if selected_states:
+                fig = forecast_prophet(df, selected_states, forecast_years)
+                st.plotly_chart(fig, use_container_width=True)

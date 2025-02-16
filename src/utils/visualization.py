@@ -5,11 +5,18 @@ import streamlit as st
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
-
+from prophet import Prophet
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import plotly.express as px
+import plotly.graph_objects as go
+from transformers import pipeline  # Importa transformers pipeline
 
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 sns.set_style("whitegrid")
+
 
 def plot_population_by_gender_age(df, key_suffix=""):
     """Gráfico de barras de población por género y grupo de edad."""
@@ -334,3 +341,133 @@ def forecast_population_quinquenal(df, key_suffix=""):
 
     except Exception as e:
         st.error(f"Error al generar el gráfico: {e}")
+
+def forecast_prophet(df, states=None, periods=5):
+    """Pronóstico automático con Facebook Prophet"""
+    if states is None:
+        states = df['Entidad federativa'].unique()
+    
+    df_agg = df[df['Entidad federativa'].isin(states)].groupby(
+        ['Entidad federativa', 'Año']
+    )['Cantidad'].sum().reset_index()
+    
+    fig = go.Figure()  # Usar graph_objects en lugar de plotly.express
+    
+    for estado in states:
+        model = Prophet(seasonality_mode='multiplicative')
+        df_train = df_agg[df_agg['Entidad federativa'] == estado].rename(
+            columns={'Año': 'ds', 'Cantidad': 'y'}
+        )
+        df_train['ds'] = pd.to_datetime(df_train['ds'], format='%Y')
+        model.fit(df_train)
+        
+        future = model.make_future_dataframe(periods=periods, freq='Y')
+        forecast = model.predict(future)
+        
+        # Añadir línea del pronóstico
+        fig.add_trace(go.Scatter(
+            x=forecast['ds'],
+            y=forecast['yhat'],
+            mode='lines',
+            name=f'Pronóstico {estado}',
+            line=dict(width=2)
+        ))
+        
+        # Añadir intervalo de confianza
+        fig.add_trace(go.Scatter(
+            x=forecast['ds'],
+            y=forecast['yhat_upper'],
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=forecast['ds'],
+            y=forecast['yhat_lower'],
+            mode='lines',
+            line=dict(width=0),
+            fill='tonexty',
+            showlegend=False
+        ))
+
+    fig.update_layout(
+        title='Pronóstico AI con Intervalos de Confianza',
+        xaxis_title='Año',
+        yaxis_title='Población',
+        hovermode='x unified'
+    )
+    
+    return fig
+
+def plot_clusters(df, year, n_clusters=3):
+    df_year = df[df['Año'] == year]
+    
+    # Crear matriz de características
+    features = df_year.pivot_table(
+        index='Entidad federativa',
+        columns=['Grupo quinquenal de edad', 'Género'],
+        values='Cantidad',
+        aggfunc='sum'
+    ).fillna(0)
+    
+    # Preprocesamiento
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(features)
+    
+    # Reducción dimensional
+    pca = PCA(n_components=2)
+    reduced_data = pca.fit_transform(scaled_features)
+    
+    # Clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    clusters = kmeans.fit_predict(scaled_features)
+    
+    # Preparar datos para visualización
+    plot_df = pd.DataFrame({
+        'Estado': features.index,
+        'PCA1': reduced_data[:,0],
+        'PCA2': reduced_data[:,1],
+        'Cluster': clusters.astype(str)
+    })
+    
+    # Crear gráfico interactivo
+    fig = px.scatter(
+        plot_df,
+        x='PCA1',
+        y='PCA2',
+        color='Cluster',
+        text='Estado',
+        title=f"Agrupamiento Demográfico {year}",
+        height=700,
+        color_discrete_sequence=px.colors.qualitative.Bold  # Mejor contraste
+    )
+    
+    # Personalización avanzada
+    fig.update_traces(
+        textfont=dict(size=8, color='#2c3e50'),
+        textposition='top center',
+        marker=dict(size=14, line=dict(width=1, color='DarkSlateGrey')),
+        hovertemplate=(
+            "<b style='background-color: white; padding: 5px; border-radius: 5px; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>"
+            "<span style='color: black; font-family: Arial'>%{text}</span><br>"
+            "<span style='color: #2c3e50'>Edad (PCA1):</span> %{x:.2f}<br>"
+            "<span style='color: #2c3e50'>Género (PCA2):</span> %{y:.2f}<br>"
+            "</b>"
+            "<extra></extra>"
+        )
+    )
+    
+    fig.update_layout(
+        xaxis_title="Eje Principal 1 (Edad)",
+        yaxis_title="Eje Principal 2 (Género)",
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Arial"
+        ),
+        plot_bgcolor='rgba(240,240,240,0.1)',  # Fondo gris claro
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    
+    return fig
